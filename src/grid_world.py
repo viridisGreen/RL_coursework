@@ -94,7 +94,7 @@ class GridWorld():
         return state == self.target_state
     
 
-    def render(self, animation_interval=args.animation_interval):
+    def render(self, animation_interval=args.animation_interval, save_path=None):
         if self.canvas is None:
             plt.ion()                             
             self.canvas, self.ax = plt.subplots()   
@@ -132,13 +132,16 @@ class GridWorld():
 
         plt.draw()
         plt.pause(animation_interval)
+        if save_path is not None:
+            plt.savefig(save_path)
+            print(f"Rendered image saved to {save_path}")
         if args.debug:
             input('press Enter to continue...')     
 
 
  
-    def add_policy(self, policy_matrix):                  
-        for state, state_action_group in enumerate(policy_matrix):    
+    def add_policy(self, policy_matrix):
+        for state, state_action_group in enumerate(policy_matrix):
             x = state % self.env_size[0]
             y = state // self.env_size[0]
             for i, action_probability in enumerate(state_action_group):
@@ -148,7 +151,8 @@ class GridWorld():
                         self.ax.add_patch(patches.FancyArrow(x, y, dx=(0.1+action_probability/2)*dx, dy=(0.1+action_probability/2)*dy, color=self.color_policy, width=0.001, head_width=0.05))
                     else:
                         self.ax.add_patch(patches.Circle((x, y), radius=0.07, facecolor=self.color_policy, edgecolor=self.color_policy, linewidth=1, fill=False))
-    
+
+
     def add_state_values(self, values, precision=1):
         '''
             values: iterable
