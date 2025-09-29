@@ -36,7 +36,8 @@ parser.add_argument("--reward-step", type=float, default = 0)
 parser.add_argument("--action-space", type=list, default=[(0, 1), (1, 0), (0, -1), (-1, 0), (0, 0)] )  # down, right, up, left, stay           
 parser.add_argument("--debug", type=bool, default=False)
 parser.add_argument("--animation-interval", type=float, default = 0.2)
-parser.add_argument("--policy", type=str, default="random", choices=["random", "deterministic"])
+parser.add_argument("--policy", type=str, default="stochastic", choices=["random", "stochastic", "deterministic"])
+parser.add_argument("--discount-rate", type=float, default = 0.9)
 ## ==================== End of Advanced settings ====================
 
 

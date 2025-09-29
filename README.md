@@ -1,3 +1,35 @@
+# Assginment - 1 Usage：
+
+To use assignment1, you need to first rollback git to the commit of assignment1.
+
+To run stochastic policy: 
+```bash
+python python example_grid_world.py --policy stochastic
+```
+
+To run deterministic policy: 
+```bash
+python python example_grid_world.py --policy deterministic
+```
+
+# Assignment - 2 Usage:
+
+To run stochastic policy: 
+```bash
+python python example_grid_world.py --policy stochastic
+```
+
+To run deterministic policy: 
+```bash
+python python example_grid_world.py --policy deterministic
+```
+
+
+
+
+
+---------------------------------------------
+
 # Code for the Grid-World Environment 
 
 ## Overview

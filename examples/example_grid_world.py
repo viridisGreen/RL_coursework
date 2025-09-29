@@ -14,11 +14,11 @@ if __name__ == "__main__":
     state = env.reset()
     env.render()
 
-    discount = 0.9
+    discount = args.discount_rate
     values = np.zeros(env.num_states)
 
     # Add policy: random policy
-    if args.policy == "random":
+    if args.policy == "stochastic":
         policy_matrix = np.array([
             [0.1, 0.6, 0.1, 0.1, 0.1],
             [0.1, 0.6, 0.1, 0.1, 0.1],
@@ -57,14 +57,19 @@ if __name__ == "__main__":
     else:
         raise ValueError("Invalid policy")
 
+    args.policy_matrix = policy_matrix
     env.add_policy(policy_matrix)
-    env.render(save_path=f"{args.policy}_policy.png")
+
+    env.render(save_path=f"{args.policy}_policy-graph.png")
+    env.get_r_and_p(policy_matrix, save_path=f"{args.policy}_r-and-P-values.png")
+
 
     for t in range(50):
         if (t != 49):
             env.render()
         else:
-            env.render(save_path=f"{args.policy}_trajectory.png")
+            env.render()  # assginment 2
+            # env.render(save_path=f"trajectory_{args.policy}.png") # assginment 1
 
         x, y = env.agent_state
         state_id = x + y * env.env_size[0]
@@ -77,8 +82,19 @@ if __name__ == "__main__":
         print(f"Step: {t}, Action: {action}, State: {next_state+(np.array([1,1]))}, Reward: {reward}, Done: {done}")
 
     
-    # Add state values
-    env.add_state_values(values)
+    # Add state values and render the environment
+    env.add_state_values(
+        policy_matrix, 
+        gamma=discount,
+        solution="closed", 
+        save_path=f"{args.policy}_state-values-closed-form.png"
+    )
+    # env.render(animation_interval=2, save_path=f"{args.policy}_state-values-closed-form.png")
 
-    # Render the environment
-    env.render(animation_interval=2, save_path=f"{args.policy}_values.png")
+    env.add_state_values(
+        policy_matrix, 
+        gamma=discount,
+        solution="iterative", 
+        save_path=f"{args.policy}_state-values-iterative-form.png"
+    )
+    # env.render(animation_interval=2, save_path=f"{args.policy}_state-values-iterative-form.png")

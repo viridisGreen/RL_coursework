@@ -3,6 +3,7 @@ __credits__ = ["Intelligent Unmanned Systems Laboratory at Westlake University."
 import sys    
 sys.path.append("..")         
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches          
 from examples.arguments import args           
@@ -36,6 +37,8 @@ class GridWorld():
         self.color_trajectory = (0, 1, 0)
         self.color_agent = (0,0,1)
 
+        # New
+        self.num_valid_states = self.num_states - len(self.forbidden_states)
 
 
     def reset(self):
@@ -139,7 +142,98 @@ class GridWorld():
             input('press Enter to continue...')     
 
 
- 
+    def draw_policy_table(self, policy_matrix, save_path=None):
+        action_names = ["Action 1 (upward)", "Action 2 (rightward)", "Action 3 (downward)", "Action 4 (leftward)", "Action 5 (still)"]
+        valid_rows = [(i, row) for i, row in enumerate(policy_matrix) if not np.all(row == 0)]
+        
+        indices, policies = zip(*valid_rows)
+        row_labels = [f"State {i + 1}" for i in indices]
+        table_data = [[f"{p:.2f}" for p in policy] for policy in policies]
+
+        fig, ax = plt.subplots(figsize=(10, len(table_data) * 0.5))
+        ax.axis('tight')
+        ax.axis('off')
+        
+        the_table = ax.table(cellText=table_data,
+                             rowLabels=row_labels,
+                             colLabels=action_names,
+                             loc='center',
+                             cellLoc='center')
+        
+        the_table.auto_set_font_size(False)
+        the_table.set_fontsize(10)
+        the_table.scale(1.2, 1.2)
+        plt.title(f"Policy Matrix: {args.policy}", fontsize=16)
+        
+        if save_path:
+            plt.savefig(save_path, bbox_inches='tight', pad_inches=0.1)
+
+        plt.close(fig)
+
+
+    def get_r_and_p(self, policy_matrix, save_path=None):
+        forbidden_grid_indices = {x + y * self.env_size[0] for x, y in self.forbidden_states}
+        valid_to_grid_map = [idx for idx in range(self.num_states) if idx not in forbidden_grid_indices]
+        num_valid_states = len(valid_to_grid_map)
+        grid_to_valid_map = {grid_idx: valid_idx for valid_idx, grid_idx in enumerate(valid_to_grid_map)}
+
+        r = np.zeros(num_valid_states)
+        p = np.zeros((num_valid_states, num_valid_states))
+
+        for valid_s_idx in range(num_valid_states):
+            grid_s_idx = valid_to_grid_map[valid_s_idx]
+            
+            x = grid_s_idx % self.env_size[0]
+            y = grid_s_idx // self.env_size[0]
+            
+            for a_idx, action in enumerate(self.action_space):
+                action_prob = policy_matrix[grid_s_idx][a_idx]
+                if action_prob == 0:
+                    continue
+
+                next_state_coords, reward = self._get_next_state_and_reward((x, y), action)
+                grid_next_s_idx = next_state_coords[0] + next_state_coords[1] * self.env_size[0]
+                valid_next_s_idx = grid_to_valid_map[grid_next_s_idx]
+
+                r[valid_s_idx] += action_prob * reward
+                p[valid_s_idx][valid_next_s_idx] += action_prob
+
+        if save_path:
+            state_labels = [f's{i}' for i in range(1, num_valid_states + 1)]
+            df_r = pd.DataFrame(r, columns=['Reward'], index=state_labels)
+            df_p = pd.DataFrame(p, index=state_labels, columns=state_labels)
+            
+            df_r = df_r.round(2)
+            df_p = df_p.round(2)
+
+            fig, axes = plt.subplots(2, 1, figsize=(12, 16))
+            fig.tight_layout(pad=6.0)
+
+            axes[0].axis('tight')
+            axes[0].axis('off')
+            table_r = axes[0].table(cellText=df_r.values, colLabels=df_r.columns,
+                                rowLabels=df_r.index, cellLoc='center', loc='center')
+            table_r.auto_set_font_size(False)
+            table_r.set_fontsize(10)
+            table_r.scale(1, 1.5)
+            axes[0].set_title("Reward Vector (r_pi)", fontsize=16)
+
+            axes[1].axis('tight')
+            axes[1].axis('off')
+            table_p = axes[1].table(cellText=df_p.values, colLabels=df_p.columns,
+                                rowLabels=df_p.index, cellLoc='center', loc='center')
+            table_p.auto_set_font_size(False)
+            table_p.set_fontsize(10)
+            table_p.scale(1, 1.5)
+            axes[1].set_title("State Transition Matrix (P_pi)", fontsize=16)
+
+            plt.savefig(save_path, bbox_inches='tight')
+            print(f"r and P values table saved to {save_path}")
+            plt.close(fig)
+
+        return r, p
+
+
     def add_policy(self, policy_matrix):
         for state, state_action_group in enumerate(policy_matrix):
             x = state % self.env_size[0]
@@ -153,12 +247,49 @@ class GridWorld():
                         self.ax.add_patch(patches.Circle((x, y), radius=0.07, facecolor=self.color_policy, edgecolor=self.color_policy, linewidth=1, fill=False))
 
 
-    def add_state_values(self, values, precision=1):
-        '''
-            values: iterable
-        '''
-        values = np.round(values, precision)
-        for i, value in enumerate(values):
-            x = i % self.env_size[0]
-            y = i // self.env_size[0]
-            self.ax.text(x, y, str(value), ha='center', va='center', fontsize=10, color='black')
+    def add_state_values(self, policy_matrix, gamma=0.9, solution="closed", precision=2, save_path=None):
+        r, p = self.get_r_and_p(policy_matrix)
+        num_valid_states = p.shape[0]
+        values = np.zeros(num_valid_states)
+
+        if solution == "closed":
+            I = np.identity(num_valid_states)
+            try:
+                values = np.linalg.inv(I - gamma * p) @ r
+            except np.linalg.LinAlgError:
+                print("Error: The matrix (I - gamma*P) is singular and cannot be inverted.")
+                return
+
+        elif solution == "iterative":
+            max_iterations = 1000
+            tolerance = 1e-6
+            
+            for i in range(max_iterations):
+                v_new = r + gamma * (p @ values)
+                if np.max(np.abs(v_new - values)) < tolerance:
+                    print(f"Iterative solution converged in {i+1} steps.")
+                    values = v_new
+                    break
+                
+                values = v_new
+            else:
+                print("Iterative solution did not converge within max iterations.")
+
+        forbidden_grid_indices = {x + y * self.env_size[0] for x, y in self.forbidden_states}
+        valid_to_grid_map = [idx for idx in range(self.num_states) if idx not in forbidden_grid_indices]
+
+        for valid_s_idx, value in enumerate(values):
+            grid_s_idx = valid_to_grid_map[valid_s_idx]
+            x = grid_s_idx % self.env_size[0]
+            y = grid_s_idx // self.env_size[0]
+            
+            formatted_value = f"{value:.{precision}f}"
+            self.ax.text(x, y, formatted_value, ha='center', va='center', fontsize=10, color='black')
+
+        self.render(animation_interval=0.1) 
+        
+        if save_path:
+            plt.savefig(save_path, bbox_inches='tight')
+            print(f"Image with state values saved to {save_path}")
+
+        return values
